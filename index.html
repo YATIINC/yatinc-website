@@ -201,6 +201,12 @@ section{padding:5.5rem 5%}
   transition:background 0.2s,transform 0.15s;font-family:inherit;
 }
 .contact-form button:hover{background:#ffcc44;transform:translateY(-1px)}
+.contact-form button:disabled{opacity:0.7;cursor:wait;transform:none}
+.contact-form .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.form-status{font-size:0.9375rem;line-height:1.5;min-height:1.5em;margin:0}
+.form-status.ok{color:var(--honey)}
+.form-status.err{color:#ffb4a8}
 button,input,textarea,select{font-family:var(--font-body)}
 .nav-cta,.btn-primary,.btn-outline{font-family:var(--font-body)}
 
@@ -340,12 +346,20 @@ footer nav a:hover{color:#f0e2bc}
           25005 Blue Ravine Rd, Ste 110-261, Folsom, CA 95630
         </div>
       </div>
-      <form class="contact-form" onsubmit="return false;">
-        <input type="text" placeholder="Your name"/>
-        <input type="email" placeholder="Email address"/>
-        <input type="text" placeholder="Company (optional)"/>
-        <textarea placeholder="Tell us about your project or challenge..."></textarea>
+      <form class="contact-form" id="contact-form" novalidate>
+        <input type="hidden" name="subject" value="New message from the yatinc.us contact form"/>
+        <input type="hidden" name="from_name" value="YATI INC website"/>
+        <input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true"/>
+        <label class="sr-only" for="cf-name">Your name</label>
+        <input id="cf-name" type="text" name="name" placeholder="Your name" autocomplete="name" required maxlength="100"/>
+        <label class="sr-only" for="cf-email">Email address</label>
+        <input id="cf-email" type="email" name="email" placeholder="Email address" autocomplete="email" required maxlength="200"/>
+        <label class="sr-only" for="cf-company">Company (optional)</label>
+        <input id="cf-company" type="text" name="company" placeholder="Company (optional)" autocomplete="organization" maxlength="150"/>
+        <label class="sr-only" for="cf-message">Your message</label>
+        <textarea id="cf-message" name="message" placeholder="Tell us about your project or challenge..." required maxlength="5000"></textarea>
         <button type="submit">Send message →</button>
+        <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
       </form>
     </div>
   </div>
@@ -364,6 +378,46 @@ footer nav a:hover{color:#f0e2bc}
     <a href="#contact">Contact</a>
   </nav>
 </footer>
+
+<script>
+/* Contact form: sends each message by email through Web3Forms.
+   The access key is meant to be public (Web3Forms only uses it to know where to deliver). */
+(function(){
+  var ACCESS_KEY = "";  // Web3Forms access key goes here
+  var form = document.getElementById("contact-form");
+  if(!form) return;
+  var status = document.getElementById("form-status");
+  var button = form.querySelector('button[type="submit"]');
+  var label = button.textContent;
+  function show(msg, kind){ status.textContent = msg; status.className = "form-status " + kind; }
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    if(form.botcheck.checked) return;            // honeypot: bots tick it, people never see it
+    if(!form.checkValidity()){
+      show("Please add your name, a valid email and a message.", "err");
+      var bad = form.querySelector(":invalid"); if(bad) bad.focus();
+      return;
+    }
+    if(!ACCESS_KEY){ show("Sorry, the form isn't connected yet. Please email info@yatinc.us.", "err"); return; }
+    var data = Object.fromEntries(new FormData(form));
+    delete data.botcheck;
+    data.access_key = ACCESS_KEY;
+    data.replyto = data.email;
+    button.disabled = true; button.textContent = "Sending…"; show("", "");
+    fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "Accept": "application/json"},
+      body: JSON.stringify(data)
+    }).then(function(r){ return r.json().then(function(j){ return {ok: r.ok && j.success, j: j}; }); })
+      .then(function(res){
+        if(res.ok){ form.reset(); show("Thanks, your message is on its way. We'll get back to you within one business day.", "ok"); }
+        else { show("Sorry, that didn't send. Please try again or email info@yatinc.us.", "err"); }
+      })
+      .catch(function(){ show("Sorry, that didn't send. Please try again or email info@yatinc.us.", "err"); })
+      .then(function(){ button.disabled = false; button.textContent = label; });
+  });
+})();
+</script>
 
 </body>
 </html>
